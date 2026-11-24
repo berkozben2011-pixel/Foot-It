@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FOOT IT! - Neon Cage Football</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Inter:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #060918;
+            font-family: 'Chakra Petch', 'Inter', sans-serif;
+            color: #ffffff;
+        }
+        #game-container {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .font-arcade {
+            font-family: 'Bungee', cursive;
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.8), 0 0 20px rgba(0, 243, 255, 0.5);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 8px rgba(255, 0, 170, 0.8), 0 0 20px rgba(255, 0, 170, 0.5);
+        }
+        .neon-text-gold {
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.9), 0 0 24px rgba(255, 140, 0, 0.7);
+        }
+        .glass-panel {
+            background: rgba(11, 17, 40, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.15), inset 0 0 20px rgba(255, 0, 170, 0.08);
+        }
+        .btn-neon {
+            transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-neon:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 22px rgba(0, 243, 255, 0.65);
+        }
+        .btn-neon:active {
+            transform: translateY(1px) scale(0.98);
+        }
+        @keyframes mcPop {
+            0% { transform: translate(-50%, 20px) scale(0.5) rotate(-4deg); opacity: 0; }
+            20% { transform: translate(-50%, 0px) scale(1.12) rotate(2deg); opacity: 1; }
+            35% { transform: translate(-50%, 0px) scale(1.0) rotate(0deg); opacity: 1; }
+            85% { transform: translate(-50%, 0px) scale(1.0) rotate(0deg); opacity: 1; }
+            100% { transform: translate(-50%, -20px) scale(0.85); opacity: 0; }
+        }
+        .mc-banner-anim {
+            animation: mcPop 2.1s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 12px rgba(0, 243, 255, 0.5); }
+            50% { box-shadow: 0 0 26px rgba(255, 0, 170, 0.8); }
+        }
+        .pulse-border {
+            animation: pulseGlow 2.5s infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Render Canvas Container -->
+    <div id="game-container"></div>
+
+    <!-- Top-Right Utility Controls (Audio, MC Voice, Gamepad Status, Menu) -->
+    <div class="fixed top-3 right-3 z-30 flex items-center gap-2">
+        <div id="gamepad-badge" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/85 border border-cyan-500/40 text-xs font-bold text-cyan-300">
+            <span id="gamepad-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+            <span id="gamepad-text">Kontrolcü Bekleniyor</span>
+        </div>
+        <button id="btn-toggle-mc" title="MC Sesli Anlatım" class="px-3 py-1.5 rounded-full bg-slate-900/85 border border-pink-500/50 text-xs font-bold text-pink-300 hover:bg-pink-950/60 transition">
+            🎙️ MC: AÇIK
+        </button>
+        <button id="btn-toggle-sfx" title="Ses Efektleri" class="px-3 py-1.5 rounded-full bg-slate-900/85 border border-cyan-500/50 text-xs font-bold text-cyan-300 hover:bg-cyan-950/60 transition">
+            🔊 SES: AÇIK
+        </button>
+        <button id="btn-open-menu" class="hidden px-3 py-1.5 rounded-full bg-rose-600/90 hover:bg-rose-500 text-xs font-bold text-white shadow-lg transition">
+            MENÜ
+        </button>
+    </div>
+
+    <!-- Live In-Game HUD (Scoreboard & Stamina/Trick Bar) -->
+    <div id="hud-overlay" class="hidden fixed inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-5">
+        <!-- Top Scoreboard -->
+        <div class="flex flex-col items-center">
+            <div class="flex items-center bg-slate-950/90 border-2 border-cyan-400/70 rounded-2xl px-4 sm:px-7 py-2 shadow-[0_0_25px_rgba(0,243,255,0.35)] gap-4 sm:gap-6">
+                <div class="flex items-center gap-2">
+                    <span class="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"></span>
+                    <span class="font-bold text-sm sm:text-base tracking-wider text-blue-300">MAVİ</span>
+                    <span id="score-blue" class="font-arcade text-2xl sm:text-3xl text-white neon-text-cyan">0</span>
+                </div>
+                <div class="flex flex-col items-center px-3 border-x border-slate-700">
+                    <span class="text-[10px] tracking-widest text-pink-400 font-bold">NEON ROOF</span>
+                    <span id="match-timer" class="font-arcade text-lg sm:text-xl text-amber-300">02:00</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="score-gold" class="font-arcade text-2xl sm:text-3xl text-white neon-text-gold">0</span>
+                    <span class="font-bold text-sm sm:text-base tracking-wider text-amber-300">ALTIN</span>
+                    <span class="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_10px_#fbbf24]"></span>
+                </div>
+            </div>
+            <!-- Online Room Badge if active -->
+            <div id="hud-room-badge" class="hidden mt-1.5 px-3 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-400/50 text-xs font-bold text-emerald-300">
+                🌐 ODA: <span id="hud-room-code" class="tracking-widest font-mono text-white">----</span> • <span id="hud-room-status">Bağlı</span>
+            </div>
+        </div>
+
+        <!-- Dynamic MC Callout Banner -->
+        <div id="mc-callout-container" class="fixed top-24 left-1/2 pointer-events-none z-30"></div>
+
+        <!-- Bottom Action & Touch Controls -->
+        <div class="flex flex-col gap-2 w-full max-w-4xl mx-auto">
+            <!-- Mobile / Touch On-Screen Controls (Visible on touch devices or small screens) -->
+            <div id="mobile-controls" class="pointer-events-auto flex sm:hidden justify-between items-end pb-2 px-1">
+                <!-- Virtual D-Pad / Joystick Zone -->
+                <div id="touch-stick-zone" class="w-28 h-28 rounded-full bg-slate-900/60 border-2 border-cyan-400/40 relative flex items-center justify-center">
+                    <div id="touch-stick-knob" class="w-11 h-11 rounded-full bg-cyan-400/80 shadow-[0_0_15px_#00f3ff]"></div>
+                </div>
+                <!-- Action Buttons -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="touch-btn-flick" class="w-14 h-14 rounded-2xl bg-fuchsia-600/85 border border-fuchsia-300 font-bold text-[11px] leading-tight shadow-lg active:scale-90">FLICK<br>🌈</button>
+                    <button id="touch-btn-jump" class="w-14 h-14 rounded-2xl bg-cyan-600/85 border border-cyan-300 font-bold text-[11px] leading-tight shadow-lg active:scale-90">ZIPLA<br>🤸</button>
+                    <button id="touch-btn-pass" class="w-14 h-14 rounded-2xl bg-emerald-600/85 border border-emerald-300 font-bold text-[11px] leading-tight shadow-lg active:scale-90">PAS/KAY<br>⚡</button>
+                    <button id="touch-btn-shoot" class="w-14 h-14 rounded-2xl bg-amber-500/90 border border-amber-200 text-slate-950 font-black text-[11px] leading-tight shadow-lg active:scale-90">ŞUT/RÖV<br>🔥</button>
+                </div>
+            </div>
+
+            <!-- Desktop / Gamepad Quick Legend -->
+            <div class="hidden sm:flex justify-center">
+                <div class="flex flex-wrap items-center justify-center gap-4 px-5 py-2 rounded-2xl bg-slate-950/75 border border-slate-700/70 text-xs text-slate-200">
+                    <span><strong class="text-cyan-400">WASD / Sol Analog:</strong> Hareket</span>
+                    <span><strong class="text-cyan-400">SPACE / A (✕):</strong> Zıpla & Duvar Taklası</span>
+                    <span><strong class="text-amber-400">J / Z / X (□):</strong> Şut & Röveşata</span>
+                    <span><strong class="text-emerald-400">K / X / B (○):</strong> Pas & Kayarak Müdahale</span>
+                    <span><strong class="text-pink-400">L / C / Y (△) / RB:</strong> Gökkuşağı Çalımı</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Menu / Lobby Overlay -->
+    <div id="menu-overlay" class="fixed inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm overflow-y-auto">
+        <div class="glass-panel rounded-3xl max-w-2xl w-full p-6 sm:p-8 pulse-border my-auto">
+            <!-- Header Logo -->
+            <div class="text-center mb-6">
+                <div class="inline-block px-3 py-1 rounded-full bg-pink-500/20 border border-pink-400/50 text-pink-300 text-xs font-bold tracking-widest mb-2">
+                    NEON ROOF • CAGE FOOTBALL ARCADE
+                </div>
+                <h1 class="font-arcade text-4xl sm:text-6xl tracking-wider text-white neon-text-cyan">
+                    FOOT <span class="text-pink-500 neon-text-pink">IT!</span>
+                </h1>
+                <p class="text-slate-300 text-sm sm:text-base mt-2">
+                    Kafes duvarlarından sek, gökkuşağı çalımı at, röveşatayla golü çak!
+                </p>
+            </div>
+
+            <!-- Game Mode Buttons -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <button id="btn-start-solo" class="btn-neon col-span-1 sm:col-span-2 py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-lg tracking-wide shadow-lg flex items-center justify-center gap-3">
+                    <span>⚡ HEMEN OYNA (1v1 / 2v2 YAPAY ZEKA)</span>
+                </button>
+
+                <button id="btn-start-local2p" class="btn-neon py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm sm:text-base tracking-wide shadow-lg flex items-center justify-center gap-2">
+                    <span>🎮 AYNI EKRAN 2 OYUNCU</span>
+                </button>
+
+                <button id="btn-toggle-online-panel" class="btn-neon py-3.5 px-5 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-700 text-white font-black text-sm sm:text-base tracking-wide shadow-lg flex items-center justify-center gap-2 border border-fuchsia-300/40">
+                    <span>🌐 ONLİNE ODA KUR / KATIL</span>
+                </button>
+            </div>
+
+            <!-- Team Size Selector -->
+            <div class="flex items-center justify-between bg-slate-900/80 border border-slate-700/80 rounded-2xl px-4 py-2.5 mb-5">
+                <span class="text-xs sm:text-sm font-bold text-slate-300">Maç Formatı:</span>
+                <div class="flex gap-2">
+                    <button id="format-1v1" class="px-3 py-1 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 transition">1 vs 1</button>
+                    <button id="format-2v2" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">2 vs 2 Kafes</button>
+                </div>
+            </div>
+
+            <!-- Online Multiplayer Sub-Panel -->
+            <div id="online-panel" class="hidden mb-5 p-4 rounded-2xl bg-slate-900/90 border border-fuchsia-500/40">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div class="w-full sm:w-auto flex-1">
+                        <div class="text-xs text-fuchsia-300 font-bold mb-1">YENİ ONLİNE ODA OLUŞTUR</div>
+                        <button id="btn-create-room" class="w-full py-2.5 px-4 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 font-bold text-sm text-white transition">
+                            + Oda Kodu Üret ve Başlat
+                        </button>
+                    </div>
+                    <div class="text-slate-500 font-bold text-xs">VEYA</div>
+                    <div class="w-full sm:w-auto flex-1">
+                        <div class="text-xs text-cyan-300 font-bold mb-1">ODA KODUYLA KATIL</div>
+                        <div class="flex gap-2">
+                            <input id="input-room-code" type="text" maxlength="4" placeholder="ÖRN: FOOT" class="w-full uppercase font-mono text-center tracking-widest px-3 py-2 rounded-xl bg-slate-950 border border-cyan-500/50 text-white font-bold focus:outline-none focus:border-cyan-300">
+                            <button id="btn-join-room" class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm transition">
+                                GİR
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <p id="online-status-msg" class="text-xs text-slate-400 mt-2.5 text-center">
+                    Arkadaşına 4 haneli oda kodunu gönder, aynı kafeste canlı kapışın!
+                </p>
+            </div>
+
+            <!-- Special Moves & Controls Guide -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <div class="p-3 rounded-2xl bg-slate-900/75 border border-cyan-500/30">
+                    <div class="font-bold text-cyan-400 mb-1">🌈 RAINBOW FLICK</div>
+                    <p class="text-slate-300">Top sendeyken <span class="text-white font-bold">L / C / Y(△)</span> bas; topu rakibin kafasından aşır!</p>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-900/75 border border-pink-500/30">
+                    <div class="font-bold text-pink-400 mb-1">🤸 WALL FLIP</div>
+                    <p class="text-slate-300">Neon kafes duvarına yakınken <span class="text-white font-bold">SPACE / A(✕)</span> bas; duvardan takla atarak fırlat!</p>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-900/75 border border-amber-500/30">
+                    <div class="font-bold text-amber-400 mb-1">🔥 BICYCLE KICK</div>
+                    <p class="text-slate-300">Top havadayken <span class="text-white font-bold">J / Z / X(□)</span> bas; alevli röveşata vur!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Match End / Victory Modal -->
+    <div id="gameover-overlay" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+        <div class="glass-panel rounded-3xl max-w-md w-full p-7 text-center pulse-border">
+            <div class="text-xs font-bold tracking-widest text-pink-400 mb-1">MAÇ SONUCU • NEON ROOF</div>
+            <h2 id="winner-title" class="font-arcade text-3xl sm:text-4xl text-white neon-text-cyan mb-4">MAVİ TAKIM KAZANDI!</h2>
+            <div class="flex justify-center items-center gap-6 bg-slate-900/90 rounded-2xl py-4 px-6 border border-slate-700 mb-6">
+                <div>
+                    <div class="text-xs text-blue-400 font-bold">MAVİ</div>
+                    <div id="final-score-blue" class="font-arcade text-4xl text-white">0</div>
+                </div>
+                <div class="font-arcade text-2xl text-slate-500">-</div>
+                <div>
+                    <div class="text-xs text-amber-400 font-bold">ALTIN</div>
+                    <div id="final-score-gold" class="font-arcade text-4xl text-white">0</div>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button id="btn-rematch" class="btn-neon flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-base">
+                    🔄 TEKRAR OYNA
+                </button>
+                <button id="btn-back-lobby" class="btn-neon py-3.5 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-base">
+                    ANA MENÜ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast (Replaces any browser alert) -->
+    <div id="toast-box" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl bg-slate-900/95 border border-cyan-400 text-sm font-bold text-cyan-200 shadow-2xl"></div>
+
+    <!-- Socket.IO istemcisi: aynı sunucudan veya window.FOOT_IT_SERVER adresinden yüklenir -->
+    <script>
+        // GitHub Pages gibi ayrı bir yerden açıyorsan buraya Node sunucunun adresini yaz:
+        // window.FOOT_IT_SERVER = 'https://senin-sunucun.onrender.com';
+        (function () {
+            var s = document.createElement('script');
+            var base = window.FOOT_IT_SERVER || '';
+            s.src = base + '/socket.io/socket.io.js';
+            s.onerror = function () { window.__sioFailed = true; };
+            document.head.appendChild(s);
+        })();
+    </script>
+
+    <script>
+        window.FootItNet = {
+            enabled: false,
+            socket: null,
+            roomCode: null,
+            role: null,            // 'host' | 'guest'
+            guestPresent: false,   // host tarafında: rakip bağlı mı
+            remoteInput: { x: 0, z: 0, jump: false, shoot: false, pass: false, flick: false },
+            remoteState: null,
+            pendingEdges: { jump: false, shoot: false, pass: false, flick: false },
+            lastSyncTime: 0,
+
+            connect() {
+                return new Promise((resolve) => {
+                    if (this.socket && this.socket.connected) return resolve(true);
+                    if (typeof io === 'undefined') return resolve(false);
+                    if (!this.socket) {
+                        this.socket = io(window.FOOT_IT_SERVER || undefined, { transports: ['websocket', 'polling'] });
+                        this._bind();
+                    }
+                    const done = (v) => { clearTimeout(t); this.socket.off('connect', ok); resolve(v); };
+                    const ok = () => { this.enabled = true; done(true); };
+                    const t = setTimeout(() => done(false), 6000);
+                    if (this.socket.connected) ok(); else this.socket.once('connect', ok);
+                });
+            },
+
+            _bind() {
+                const s = this.socket;
+                s.on('disconnect', () => { this.enabled = false; });
+                s.on('connect', () => { this.enabled = true; });
+                s.on('guest-joined', () => {
+                    this.guestPresent = true;
+                    if (window.onOnlineGuestJoined) window.onOnlineGuestJoined();
+                });
+                s.on('guest-left', () => {
+                    this.guestPresent = false;
+                    this.remoteInput = { x: 0, z: 0, jump: false, shoot: false, pass: false, flick: false };
+                    if (window.onOnlinePeerLeft) window.onOnlinePeerLeft('Rakip ayrıldı, bot devraldı.');
+                });
+                s.on('room-closed', (msg) => {
+                    if (window.onOnlinePeerLeft) window.onOnlinePeerLeft(msg || 'Oda kapandı.', true);
+                });
+                s.on('guest-input', (inp) => {
+                    if (this.role !== 'host' || !inp) return;
+                    const r = this.remoteInput;
+                    // Kenar tetikleyicileri (zıpla/şut/pas/hileli) kaybolmasın diye biriktir
+                    this.remoteInput = {
+                        x: inp.x || 0, z: inp.z || 0,
+                        jump: r.jump || !!inp.jump, shoot: r.shoot || !!inp.shoot,
+                        pass: r.pass || !!inp.pass, flick: r.flick || !!inp.flick
+                    };
+                });
+                s.on('world-state', (st) => {
+                    if (this.role !== 'guest' || !st) return;
+                    st.recvAt = performance.now();
+                    this.remoteState = st;
+                });
+            },
+
+            async createRoom() {
+                const ok = await this.connect();
+                if (!ok) return { ok: false, msg: 'Sunucuya bağlanılamadı. Oyunu "npm start" ile açtığından emin ol.' };
+                return new Promise((resolve) => {
+                    this.socket.emit('create-room', {}, (res) => {
+                        if (!res || !res.ok) return resolve({ ok: false, msg: (res && res.msg) || 'Oda oluşturulamadı.' });
+                        this.roomCode = res.code; this.role = 'host';
+                        this.guestPresent = false; this.remoteState = null;
+                        resolve({ ok: true, code: res.code });
+                    });
+                });
+            },
+
+            async joinRoom(rawCode) {
+                const code = (rawCode || '').trim().toUpperCase();
+                if (code.length < 4) return { ok: false, msg: 'Lütfen 4 haneli geçerli bir oda kodu girin.' };
+                const ok = await this.connect();
+                if (!ok) return { ok: false, msg: 'Sunucuya bağlanılamadı.' };
+                return new Promise((resolve) => {
+                    this.socket.emit('join-room', code, (res) => {
+                        if (!res || !res.ok) return resolve({ ok: false, msg: (res && res.msg) || 'Odaya katılınamadı.' });
+                        this.roomCode = res.code; this.role = 'guest'; this.remoteState = null;
+                        resolve({ ok: true, code: res.code });
+                    });
+                });
+            },
+
+            // Kurucu: dünya durumunu ~20Hz yayınla
+            syncHostState(stateObj) {
+                if (!this.enabled || this.role !== 'host' || !this.guestPresent) return;
+                const now = performance.now();
+                if (now - this.lastSyncTime < 50) return;
+                this.lastSyncTime = now;
+                this.socket.volatile.emit('world-state', stateObj);
+            },
+
+            // Misafir: girdiyi ~30Hz gönder, tek karelik tuşlar kaybolmasın
+            syncGuestInput(inp) {
+                if (!this.enabled || this.role !== 'guest') return;
+                const e = this.pendingEdges;
+                e.jump = e.jump || !!inp.jump; e.shoot = e.shoot || !!inp.shoot;
+                e.pass = e.pass || !!inp.pass; e.flick = e.flick || !!inp.flick;
+                const now = performance.now();
+                if (now - this.lastSyncTime < 33) return;
+                this.lastSyncTime = now;
+                this.socket.emit('guest-input', { x: inp.x, z: inp.z, jump: e.jump, shoot: e.shoot, pass: e.pass, flick: e.flick });
+                e.jump = e.shoot = e.pass = e.flick = false;
+            },
+
+            leaveRoom() {
+                if (this.socket && this.socket.connected) this.socket.emit('leave-room');
+                this.roomCode = null; this.role = null; this.guestPresent = false; this.remoteState = null;
+            }
+        };
+    </script>
+
+    <!-- Main 3D Game Engine, Physics, Audio, MC & Input Controller -->
+    <script>
+    (function() {
+        'use strict';
+
+        // ==========================================
+        // 1. SOUND EFFECTS & MC COMMENTATOR SYSTEM
+        // ==========================================
+        const SoundSystem = {
+            ctx: null,
+            sfxEnabled: true,
+            mcEnabled: true,
+            lastMcTime: 0,
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+            },
+
+            playTone(freq, type, duration, vol = 0.2, slideTo = null) {
+                if (!this.sfxEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, now);
+                    if (slideTo) {
+                        osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+                    }
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + duration);
+                } catch (e) {}
+            },
+
+            playKick(power = 1) {
+                this.playTone(140 * power, 'triangle', 0.14, 0.35, 45);
+                this.playTone(320, 'sine', 0.08, 0.15, 90);
+            },
+
+            playWallBoing() {
+                this.playTone(220, 'sine', 0.18, 0.22, 460);
+            },
+
+            playTrick(type) {
+                if (type === 'rainbow') {
+                    this.playTone(440, 'sine', 0.15, 0.22, 880);
+                    setTimeout(() => this.playTone(660, 'triangle', 0.2, 0.22, 1180), 70);
+                } else if (type === 'wallflip') {
+                    this.playTone(300, 'sawtooth', 0.22, 0.2, 760);
+                } else if (type === 'bicycle') {
+                    this.playTone(180, 'sawtooth', 0.28, 0.35, 65);
+                    this.playTone(520, 'square', 0.16, 0.18, 920);
+                }
+            },
+
+            playWhistle() {
+                this.playTone(2800, 'sine', 0.18, 0.18, 2650);
+                setTimeout(() => this.playTone(2850, 'sine', 0.32, 0.2, 2600), 210);
+            },
+
+            playGoal() {
+                const notes = [523.25, 659.25, 783.99, 1046.5];
+                notes.forEach((n, idx) => {
+                    setTimeout(() => this.playTone(n, 'sawtooth', 0.35, 0.22), idx * 95);
+                });
+            },
+
+            announceMC(bannerText, speechText, colorClass = 'text-cyan-300 border-cyan-400') {
+                // Visual MC Banner
+                const container = document.getElementById('mc-callout-container');
+                if (container) {
+                    container.innerHTML = '';
+                    const el = document.createElement('div');
+                    el.className = `mc-banner-anim px-6 py-2.5 rounded-2xl bg-slate-950/90 border-2 ${colorClass} shadow-2xl text-center whitespace-nowrap`;
+                    el.innerHTML = `
+                        <div class="text-[10px] font-bold tracking-widest text-pink-400">🎙️ MC LIVE</div>
+                        <div class="font-arcade text-xl sm:text-3xl tracking-wider">${bannerText}</div>
+                    `;
+                    container.appendChild(el);
+                }
+
+                // Voice Synthesis (Safe, throttled, never throws)
+                if (!this.mcEnabled || typeof window.speechSynthesis === 'undefined') return;
+                const now = performance.now();
+                if (now - this.lastMcTime < 1300) return;
+                this.lastMcTime = now;
+
+                try {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(speechText || bannerText);
+                    utter.lang = 'en-US';
+                    utter.rate = 1.18;
+                    utter.pitch = 1.15;
+                    utter.volume = 0.85;
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {}
+            }
+        };
+
+        // ==========================================
+        // 2. DUAL INPUT MANAGER (KEYBOARD + GAMEPAD + TOUCH)
+        // ==========================================
+        const InputManager = {
+            keys: {},
+            justPressed: {},
+            touchVec: { x: 0, z: 0 },
+            touchButtons: { jump: false, shoot: false, pass: false, flick: false },
+            prevGamepadButtons: {},
+
+            init() {
+                window.addEventListener('keydown', (e) => {
+                    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                        if (document.activeElement?.tagName !== 'INPUT') {
+                            e.preventDefault();
+                        }
+                    }
+                    if (!this.keys[e.code]) {
+                        this.justPressed[e.code] = true;
+                    }
+                    this.keys[e.code] = true;
+                    SoundSystem.init();
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+
+                window.addEventListener('gamepadconnected', (e) => {
+                    this.updateGamepadBadge(true, e.gamepad.id);
+                    showToast('🎮 Kontrolcü Bağlandı: ' + e.gamepad.id.slice(0, 26));
+                });
+
+                window.addEventListener('gamepaddisconnected', () => {
+                    this.updateGamepadBadge(false);
+                });
+
+                this.setupTouchControls();
+            },
+
+            updateGamepadBadge(connected, name = '') {
+                const dot = document.getElementById('gamepad-dot');
+                const txt = document.getElementById('gamepad-text');
+                if (!dot || !txt) return;
+                if (connected) {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
+                    txt.textContent = 'Kontrolcü Aktif';
+                } else {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+                    txt.textContent = 'Kontrolcü Bekleniyor';
+                }
+            },
+
+            setupTouchControls() {
+                const zone = document.getElementById('touch-stick-zone');
+                const knob = document.getElementById('touch-stick-knob');
+                if (zone && knob) {
+                    const handleTouch = (e) => {
+                        e.preventDefault();
+                        const touch = e.touches[0];
+                        if (!touch) return;
+                        const rect = zone.getBoundingClientRect();
+                        const cx = rect.left + rect.width / 2;
+                        const cy = rect.top + rect.height / 2;
+                        const maxR = rect.width / 2 - 16;
+                        let dx = touch.clientX - cx;
+                        let dy = touch.clientY - cy;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist > maxR) {
+                            dx = (dx / dist) * maxR;
+                            dy = (dy / dist) * maxR;
+                        }
+                        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+                        this.touchVec.x = dx / maxR;
+                        this.touchVec.z = dy / maxR;
+                    };
+                    const resetTouch = () => {
+                        knob.style.transform = 'translate(0px, 0px)';
+                        this.touchVec.x = 0;
+                        this.touchVec.z = 0;
+                    };
+                    zone.addEventListener('touchstart', handleTouch, { passive: false });
+                    zone.addEventListener('touchmove', handleTouch, { passive: false });
+                    zone.addEventListener('touchend', resetTouch);
+                    zone.addEventListener('touchcancel', resetTouch);
+                }
+
+                const bindBtn = (id, key) => {
+                    const btn = document.getElementById(id);
+                    if (!btn) return;
+                    btn.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        SoundSystem.init();
+                        this.touchButtons[key] = true;
+                    }, { passive: false });
+                    btn.addEventListener('touchend', () => {
+                        this.touchButtons[key] = false;
+                    });
+                };
+                bindBtn('touch-btn-jump', 'jump');
+                bindBtn('touch-btn-shoot', 'shoot');
+                bindBtn('touch-btn-pass', 'pass');
+                bindBtn('touch-btn-flick', 'flick');
+            },
+
+            pollGamepad(padIndex = 0) {
+                if (!navigator.getGamepads) return null;
+                const pads = navigator.getGamepads();
+                const pad = pads ? pads[padIndex] : null;
+                if (!pad) return null;
+
+                if (padIndex === 0) {
+                    this.updateGamepadBadge(true, pad.id);
+                }
+
+                const deadzone = 0.18;
+                let ax = Math.abs(pad.axes[0]) > deadzone ? pad.axes[0] : 0;
+                let az = Math.abs(pad.axes[1]) > deadzone ? pad.axes[1] : 0;
+
+                // D-pad support (buttons 12, 13, 14, 15)
+                if (pad.buttons[14]?.pressed) ax = -1;
+                if (pad.buttons[15]?.pressed) ax = 1;
+                if (pad.buttons[12]?.pressed) az = -1;
+                if (pad.buttons[13]?.pressed) az = 1;
+
+                const isDown = (bIdx) => !!pad.buttons[bIdx]?.pressed;
+                const wasDown = (bIdx) => !!this.prevGamepadButtons[`${padIndex}_${bIdx}`];
+                const justDown = (bIdx) => isDown(bIdx) && !wasDown(bIdx);
+
+                const res = {
+                    x: ax,
+                    z: az,
+                    jump: justDown(0),                 // A / Cross
+                    pass: justDown(1),                 // B / Circle
+                    shoot: justDown(2) || justDown(7), // X / Square / RT
+                    flick: justDown(3) || justDown(5)  // Y / Triangle / RB
+                };
+
+                for (let i = 0; i < 16; i++) {
+                    this.prevGamepadButtons[`${padIndex}_${i}`] = isDown(i);
+                }
+                return res;
+            },
+
+            getPlayer1Input(local2PMode = false) {
+                let x = 0, z = 0;
+                // Movement: WASD (or Arrows too when not in 2P local)
+                if (this.keys['KeyA'] || (!local2PMode && this.keys['ArrowLeft'])) x -= 1;
+                if (this.keys['KeyD'] || (!local2PMode && this.keys['ArrowRight'])) x += 1;
+                if (this.keys['KeyW'] || (!local2PMode && this.keys['ArrowUp'])) z -= 1;
+                if (this.keys['KeyS'] || (!local2PMode && this.keys['ArrowDown'])) z += 1;
+
+                if (Math.hypot(this.touchVec.x, this.touchVec.z) > 0.1) {
+                    x = this.touchVec.x;
+                    z = this.touchVec.z;
+                }
+
+                let jump = !!(this.justPressed['Space'] || this.touchButtons.jump);
+                let shoot = !!(this.justPressed['KeyJ'] || this.justPressed['KeyZ'] || this.touchButtons.shoot);
+                let pass = !!(this.justPressed['KeyK'] || this.justPressed['KeyX'] || this.touchButtons.pass);
+                let flick = !!(this.justPressed['KeyL'] || this.justPressed['KeyC'] || this.touchButtons.flick);
+
+                // Merge Gamepad 0
+                const gp = this.pollGamepad(0);
+                if (gp) {
+                    if (Math.hypot(gp.x, gp.z) > 0.1) {
+                        x = gp.x;
+                        z = gp.z;
+                    }
+                    jump = jump || gp.jump;
+                    shoot = shoot || gp.shoot;
+                    pass = pass || gp.pass;
+                    flick = flick || gp.flick;
+                }
+
+                // Reset single-frame touch buttons
+                this.touchButtons.jump = false;
+                this.touchButtons.shoot = false;
+                this.touchButtons.pass = false;
+                this.touchButtons.flick = false;
+
+                const len = Math.hypot(x, z);
+                if (len > 1) { x /= len; z /= len; }
+
+                return { x, z, jump, shoot, pass, flick };
+            },
+
+            getPlayer2LocalInput() {
+                let x = 0, z = 0;
+                if (this.keys['ArrowLeft']) x -= 1;
+                if (this.keys['ArrowRight']) x += 1;
+                if (this.keys['ArrowUp']) z -= 1;
+                if (this.keys['ArrowDown']) z += 1;
+
+                let jump = !!(this.justPressed['Enter'] || this.justPressed['ShiftRight'] || this.justPressed['Numpad0']);
+                let shoot = !!(this.justPressed['KeyM'] || this.justPressed['Numpad1']);
+                let pass = !!(this.justPressed['KeyN'] || this.justPressed['Numpad2']);
+                let flick = !!(this.justPressed['KeyB'] || this.justPressed['Numpad3']);
+
+                // Second controller support if connected!
+                const gp2 = this.pollGamepad(1);
+                if (gp2) {
+                    if (Math.hypot(gp2.x, gp2.z) > 0.1) {
+                        x = gp2.x;
+                        z = gp2.z;
+                    }
+                    jump = jump || gp2.jump;
+                    shoot = shoot || gp2.shoot;
+                    pass = pass || gp2.pass;
+                    flick = flick || gp2.flick;
+                }
+
+                const len = Math.hypot(x, z);
+                if (len > 1) { x /= len; z /= len; }
+
+                return { x, z, jump, shoot, pass, flick };
+            },
+
+            clearFrame() {
+                this.justPressed = {};
+            }
+        };
+
+        // ==========================================
+        // 3. THREE.JS 3D NEON ROOF ARENA & CHARACTERS
+        // ==========================================
+        const ARENA = {
+            HALF_W: 28,
+            HALF_D: 17.5,
+            WALL_H: 7.5,
+            GOAL_W: 6.8,
+            GOAL_H: 3.6,
+            GOAL_D: 2.6
+        };
+
+        let scene, camera, renderer;
+        let ballMesh, ballShadow, ballRing, ballTrailParticles = [];
+        let crowdMeshes = [];
+        let screenShake = 0;
+        let hitstopTimer = 0;
+
+        function createNeonBannerTexture(text, bgColor, textColor, borderColor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, 512, 128);
+
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 10;
+            ctx.strokeRect(8, 8, 496, 112);
+
+            ctx.fillStyle = textColor;
+            ctx.font = '900 58px "Chakra Petch", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = textColor;
+            ctx.shadowBlur = 18;
+            ctx.fillText(text, 256, 66);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        function createPitchTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1280;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+
+            // Vivid Royal/Neon Blue Turf (matching video)
+            const grad = ctx.createLinearGradient(0, 0, 1280, 800);
+            grad.addColorStop(0, '#0b38d4');
+            grad.addColorStop(0.5, '#1248f5');
+            grad.addColorStop(1, '#092eb8');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1280, 800);
+
+            // Subtle turf stripes
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            for (let i = 0; i < 20; i += 2) {
+                ctx.fillRect(i * 64, 0, 64, 800);
+            }
+
+            // Crisp glowing white pitch lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.lineWidth = 9;
+            ctx.shadowColor = '#00f3ff';
+            ctx.shadowBlur = 14;
+
+            // Outer boundary
+            ctx.strokeRect(30, 30, 1220, 740);
+
+            // Halfway line
+            ctx.beginPath();
+            ctx.moveTo(640, 30);
+            ctx.lineTo(640, 770);
+            ctx.stroke();
+
+            // Center circle
+            ctx.beginPath();
+            ctx.arc(640, 400, 115, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Center dot
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(640, 400, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Penalty areas
+            ctx.strokeRect(30, 215, 165, 370);
+            ctx.strokeRect(1085, 215, 165, 370);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 4;
+            return tex;
+        }
+
+        function createCageWallTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 512, 256);
+
+            // Hexagonal neon mesh grid
+            const r = 24;
+            const dx = r * 1.5;
+            const dy = r * Math.sqrt(3);
+
+            for (let col = 0; col < 16; col++) {
+                for (let row = 0; row < 8; row++) {
+                    const cx = col * dx;
+                    const cy = row * dy + (col % 2 === 1 ? dy / 2 : 0);
+                    ctx.beginPath();
+                    for (let i = 0; i < 6; i++) {
+                        const ang = (Math.PI / 3) * i;
+                        const px = cx + r * 0.9 * Math.cos(ang);
+                        const py = cy + r * 0.9 * Math.sin(ang);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = (col + row) % 3 === 0 ? 'rgba(255, 0, 170, 0.55)' : 'rgba(0, 243, 255, 0.5)';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                }
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(6, 1.2);
+            return tex;
+        }
+
+        function initScene() {
+            const container = document.getElementById('game-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x060918);
+            scene.fog = new THREE.FogExp2(0x060918, 0.0095);
+
+            camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 22.5, 32.5);
+            camera.lookAt(0, 1.4, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x1a1040, 0.95);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+            dirLight.position.set(14, 34, 18);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 5;
+            dirLight.shadow.camera.far = 85;
+            const d = 34;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            // Neon point lights
+            const cyanLight = new THREE.PointLight(0x00f3ff, 1.25, 65);
+            cyanLight.position.set(-20, 9, -14);
+            scene.add(cyanLight);
+
+            const pinkLight = new THREE.PointLight(0xff00aa, 1.25, 65);
+            pinkLight.position.set(20, 9, -14);
+            scene.add(pinkLight);
+
+            // Pitch Floor
+            const pitchGeo = new THREE.BoxGeometry(ARENA.HALF_W * 2 + 1.8, 0.8, ARENA.HALF_D * 2 + 1.8);
+            const pitchMat = new THREE.MeshStandardMaterial({
+                map: createPitchTexture(),
+                roughness: 0.45,
+                metalness: 0.1
+            });
+            const pitchMesh = new THREE.Mesh(pitchGeo, pitchMat);
+            pitchMesh.position.y = -0.4;
+            pitchMesh.receiveShadow = true;
+            scene.add(pitchMesh);
+
+            // Rooftop Deck Surroundings
+            const deckGeo = new THREE.PlaneGeometry(150, 120);
+            const deckMat = new THREE.MeshStandardMaterial({ color: 0x090d24, roughness: 0.9 });
+            const deckMesh = new THREE.Mesh(deckGeo, deckMat);
+            deckMesh.rotation.x = -Math.PI / 2;
+            deckMesh.position.y = -0.82;
+            scene.add(deckMesh);
+
+            // Cage Walls (Back, Left, Right, and Low Front Rail so camera is never blocked)
+            const cageTex = createCageWallTexture();
+            const cageMat = new THREE.MeshBasicMaterial({
+                map: cageTex,
+                transparent: true,
+                opacity: 0.85,
+                side: THREE.DoubleSide
+            });
+
+            // Back Cage Wall
+            const backWall = new THREE.Mesh(new THREE.PlaneGeometry(ARENA.HALF_W * 2, ARENA.WALL_H), cageMat);
+            backWall.position.set(0, ARENA.WALL_H / 2, -ARENA.HALF_D);
+            scene.add(backWall);
+
+            // Left & Right Cage Walls (above/around goals)
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(ARENA.HALF_D * 2, ARENA.WALL_H), cageMat);
+            leftWall.rotation.y = Math.PI / 2;
+            leftWall.position.set(-ARENA.HALF_W, ARENA.WALL_H / 2, 0);
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(ARENA.HALF_D * 2, ARENA.WALL_H), cageMat);
+            rightWall.rotation.y = -Math.PI / 2;
+            rightWall.position.set(ARENA.HALF_W, ARENA.WALL_H / 2, 0);
+            scene.add(rightWall);
+
+            // Front Low Neon Barrier (translucent so players are always clearly visible)
+            const frontRailMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0.28 });
+            const frontRail = new THREE.Mesh(new THREE.BoxGeometry(ARENA.HALF_W * 2, 0.8, 0.2), frontRailMat);
+            frontRail.position.set(0, 0.4, ARENA.HALF_D);
+            scene.add(frontRail);
+
+            // Glowing Neon Top & Bottom Frame Rails
+            const railCyan = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
+            const railPink = new THREE.MeshBasicMaterial({ color: 0xff00aa });
+
+            const topBackBar = new THREE.Mesh(new THREE.BoxGeometry(ARENA.HALF_W * 2, 0.22, 0.22), railCyan);
+            topBackBar.position.set(0, ARENA.WALL_H, -ARENA.HALF_D);
+            scene.add(topBackBar);
+
+            const midBackBar = new THREE.Mesh(new THREE.BoxGeometry(ARENA.HALF_W * 2, 0.16, 0.16), railPink);
+            midBackBar.position.set(0, 1.4, -ARENA.HALF_D);
+            scene.add(midBackBar);
+
+            // LED Neon Banners ("NEON ROOF" & "FOOT IT") along back wall
+            const bannerNeonRoof = createNeonBannerTexture('NEON ROOF', '#0a0f2c', '#00f3ff', '#ff00aa');
+            const bannerFootIt = createNeonBannerTexture('FOOT IT', '#16082c', '#ff22bb', '#00f3ff');
+
+            const bannerPositions = [
+                { x: -21, tex: bannerNeonRoof },
+                { x: -12.6, tex: bannerFootIt },
+                { x: -4.2, tex: bannerNeonRoof },
+                { x: 4.2, tex: bannerFootIt },
+                { x: 12.6, tex: bannerNeonRoof },
+                { x: 21, tex: bannerFootIt }
+            ];
+            bannerPositions.forEach(b => {
+                const bMesh = new THREE.Mesh(
+                    new THREE.PlaneGeometry(8.0, 1.35),
+                    new THREE.MeshBasicMaterial({ map: b.tex })
+                );
+                bMesh.position.set(b.x, 1.2, -ARENA.HALF_D + 0.08);
+                scene.add(bMesh);
+            });
+
+            // 3D Goals (Left = Blue defends, Right = Gold defends)
+            buildGoal(-ARENA.HALF_W, 0x3b82f6);
+            buildGoal(ARENA.HALF_W, 0xfbbf24);
+
+            // Animated Rooftop Crowd Silhouettes behind Back Cage
+            buildCrowd();
+
+            // Football + Shadow + Aura Ring
+            buildBall();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildGoal(xPos, teamColor) {
+            const group = new THREE.Group();
+            const dir = xPos < 0 ? -1 : 1;
+            const postMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                emissive: teamColor,
+                emissiveIntensity: 0.45,
+                roughness: 0.2
+            });
+
+            const hw = ARENA.GOAL_W / 2;
+            const h = ARENA.GOAL_H;
+            const d = ARENA.GOAL_D;
+
+            // Front posts & crossbar
+            const postGeo = new THREE.CylinderGeometry(0.16, 0.16, h, 16);
+            const p1 = new THREE.Mesh(postGeo, postMat);
+            p1.position.set(0, h / 2, -hw);
+            const p2 = new THREE.Mesh(postGeo, postMat);
+            p2.position.set(0, h / 2, hw);
+
+            const crossGeo = new THREE.CylinderGeometry(0.16, 0.16, ARENA.GOAL_W + 0.3, 16);
+            const cross = new THREE.Mesh(crossGeo, postMat);
+            cross.rotation.x = Math.PI / 2;
+            cross.position.set(0, h, 0);
+
+            group.add(p1, p2, cross);
+
+            // Goal Net (wireframe grid box)
+            const netGeo = new THREE.BoxGeometry(d, h, ARENA.GOAL_W);
+            const netMat = new THREE.MeshBasicMaterial({
+                color: 0xe2e8f0,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.45
+            });
+            const net = new THREE.Mesh(netGeo, netMat);
+            net.position.set(dir * (d / 2), h / 2, 0);
+            group.add(net);
+
+            group.position.set(xPos, 0, 0);
+            scene.add(group);
+        }
+
+        function buildCrowd() {
+            crowdMeshes = [];
+            const headGeo = new THREE.SphereGeometry(0.44, 12, 12);
+            const bodyGeo = new THREE.CylinderGeometry(0.34, 0.44, 0.9, 10);
+
+            for (let row = 0; row < 2; row++) {
+                const count = 34;
+                for (let i = 0; i < count; i++) {
+                    const x = -27 + (i / (count - 1)) * 54;
+                    const z = -ARENA.HALF_D - 1.8 - row * 1.5;
+                    const baseY = 1.7 + row * 1.15;
+
+                    const isCyan = (i + row) % 2 === 0;
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: 0x111836,
+                        emissive: isCyan ? 0x00f3ff : 0xff00aa,
+                        emissiveIntensity: 0.18,
+                        roughness: 0.7
+                    });
+
+                    const fan = new THREE.Group();
+                    const body = new THREE.Mesh(bodyGeo, mat);
+                    const head = new THREE.Mesh(headGeo, mat);
+                    head.position.y = 0.74;
+                    fan.add(body, head);
+                    fan.position.set(x, baseY, z);
+                    scene.add(fan);
+
+                    crowdMeshes.push({
+                        mesh: fan,
+                        baseY,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 3 + Math.random() * 2
+                    });
+                }
+            }
+        }
+
+        function createSoccerBallTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 256, 128);
+
+            ctx.fillStyle = '#111827';
+            const spots = [
+                [32, 32], [96, 32], [160, 32], [224, 32],
+                [64, 92], [128, 92], [192, 92]
+            ];
+            spots.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, 18, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function buildBall() {
+            const geo = new THREE.SphereGeometry(0.55, 24, 24);
+            const mat = new THREE.MeshStandardMaterial({
+                map: createSoccerBallTexture(),
+                roughness: 0.3,
+                metalness: 0.1
+            });
+            ballMesh = new THREE.Mesh(geo, mat);
+            ballMesh.castShadow = true;
+            scene.add(ballMesh);
+
+            // Ground shadow
+            const shGeo = new THREE.CircleGeometry(0.6, 20);
+            const shMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42 });
+            ballShadow = new THREE.Mesh(shGeo, shMat);
+            ballShadow.rotation.x = -Math.PI / 2;
+            ballShadow.position.y = 0.02;
+            scene.add(ballShadow);
+
+            // Glowing Power Aura Ring around ball
+            const ringGeo = new THREE.RingGeometry(0.65, 0.85, 24);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0x00f3ff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.75
+            });
+            ballRing = new THREE.Mesh(ringGeo, ringMat);
+            ballMesh.add(ballRing);
+        }
+
+        // Stylized Chibi / Big-Head 3D Footballer Builder (inspired by the video characters!)
+        function createPlayerMesh(team, styleIndex) {
+            const root = new THREE.Group();
+            const isBlue = team === 'blue';
+            const jerseyColor = isBlue ? 0x1d4ed8 : 0xf59e0b;
+            const trimColor = isBlue ? 0x38bdf8 : 0xfef08a;
+
+            // Body (Torso)
+            const torsoGeo = new THREE.CylinderGeometry(0.42, 0.48, 0.88, 16);
+            const torsoMat = new THREE.MeshStandardMaterial({ color: jerseyColor, roughness: 0.4 });
+            const torso = new THREE.Mesh(torsoGeo, torsoMat);
+            torso.position.y = 0.85;
+            torso.castShadow = true;
+            root.add(torso);
+
+            // Jersey Stripe
+            const stripeGeo = new THREE.CylinderGeometry(0.44, 0.46, 0.22, 16);
+            const stripeMat = new THREE.MeshBasicMaterial({ color: trimColor });
+            const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+            stripe.position.y = 0.92;
+            root.add(stripe);
+
+            // Big Chibi Head (signature style from video)
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 1.72;
+            const headGeo = new THREE.SphereGeometry(0.56, 20, 20);
+            const skinTone = styleIndex % 2 === 0 ? 0xfcd3b4 : 0x8d5524;
+            const headMat = new THREE.MeshStandardMaterial({ color: skinTone, roughness: 0.5 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.castShadow = true;
+            headGroup.add(head);
+
+            // Hairstyles matching video characters (Spiky brown hair vs Dreadlocks)
+            if (styleIndex % 2 === 0) {
+                // Spiky Brown Hair
+                const hairMat = new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.6 });
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.58, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
+                headGroup.add(cap);
+
+                const spikeGeo = new THREE.ConeGeometry(0.16, 0.46, 8);
+                const spikeOffsets = [
+                    [0, 0.68, 0, 0, 0],
+                    [-0.28, 0.62, 0.1, 0.2, 0.4],
+                    [0.28, 0.62, 0.1, 0.2, -0.4],
+                    [-0.22, 0.6, -0.2, -0.3, 0.35],
+                    [0.22, 0.6, -0.2, -0.3, -0.35]
+                ];
+                spikeOffsets.forEach(([sx, sy, sz, rx, rz]) => {
+                    const sp = new THREE.Mesh(spikeGeo, hairMat);
+                    sp.position.set(sx, sy, sz);
+                    sp.rotation.set(rx, 0, rz);
+                    headGroup.add(sp);
+                });
+            } else {
+                // Dreadlocks Hair
+                const dreadMat = new THREE.MeshStandardMaterial({ color: 0x2b1810, roughness: 0.7 });
+                const dreadGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.68, 8);
+                for (let a = 0; a < 12; a++) {
+                    const ang = (a / 12) * Math.PI * 2;
+                    if (Math.cos(ang) > 0.55) continue; // keep face clear
+                    const dr = new THREE.Mesh(dreadGeo, dreadMat);
+                    dr.position.set(Math.cos(ang) * 0.48, 0.05, Math.sin(ang) * 0.48);
+                    dr.rotation.z = -Math.cos(ang) * 0.25;
+                    dr.rotation.x = Math.sin(ang) * 0.25;
+                    headGroup.add(dr);
+                }
+            }
+
+            // Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.07, 10, 10);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(0.48, -0.02, -0.18);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.48, -0.02, 0.18);
+            headGroup.add(leftEye, rightEye);
+
+            root.add(headGroup);
+
+            // Animated Arms & Legs
+            const limbMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: trimColor, emissive: trimColor, emissiveIntensity: 0.3 });
+
+            const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 0.24), shoeMat);
+            leftLeg.position.set(0, 0.24, -0.22);
+            const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 0.24), shoeMat);
+            rightLeg.position.set(0, 0.24, 0.22);
+
+            const handGeo = new THREE.SphereGeometry(0.14, 10, 10);
+            const leftArm = new THREE.Mesh(handGeo, limbMat);
+            leftArm.position.set(0.1, 0.85, -0.58);
+            const rightArm = new THREE.Mesh(handGeo, limbMat);
+            rightArm.position.set(0.1, 0.85, 0.58);
+
+            root.add(leftLeg, rightLeg, leftArm, rightArm);
+
+            // Team Selection Ring under feet
+            const selRing = new THREE.Mesh(
+                new THREE.RingGeometry(0.55, 0.72, 24),
+                new THREE.MeshBasicMaterial({ color: trimColor, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+            );
+            selRing.rotation.x = -Math.PI / 2;
+            selRing.position.y = 0.03;
+            root.add(selRing);
+
+            scene.add(root);
+            return { root, headGroup, leftLeg, rightLeg, leftArm, rightArm };
+        }
+
+        function spawnTrailParticle(pos, colorHex, scale = 0.35) {
+            const geo = new THREE.SphereGeometry(scale, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(pos);
+            scene.add(mesh);
+            ballTrailParticles.push({ mesh, life: 1.0 });
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ==========================================
+        // 4. GAME STATE & ARCADE FOOTBALL PHYSICS
+        // ==========================================
+        const Game = {
+            state: 'menu', // 'menu', 'playing', 'goal_pause', 'gameover'
+            mode: 'solo',  // 'solo', 'local2p', 'online'
+            format: '1v1', // '1v1' or '2v2'
+            scoreBlue: 0,
+            scoreGold: 0,
+            timeLeft: 120,
+            goalPauseTimer: 0,
+            players: [],
+            ball: {
+                pos: new THREE.Vector3(0, 0.6, 0),
+                vel: new THREE.Vector3(0, 0, 0),
+                owner: null,
+                powerTimer: 0,
+                powerColor: 0x00f3ff,
+                lastTouchTeam: null
+            },
+
+            startMatch(mode) {
+                this.mode = mode;
+                this.scoreBlue = 0;
+                this.scoreGold = 0;
+                this.timeLeft = 120;
+                this.state = 'playing';
+
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('gameover-overlay').classList.add('hidden');
+                document.getElementById('hud-overlay').classList.remove('hidden');
+                document.getElementById('btn-open-menu').classList.remove('hidden');
+
+                const roomBadge = document.getElementById('hud-room-badge');
+                if (mode === 'online' && window.FootItNet?.roomCode) {
+                    roomBadge.classList.remove('hidden');
+                    document.getElementById('hud-room-code').textContent = window.FootItNet.roomCode;
+                } else {
+                    roomBadge.classList.add('hidden');
+                }
+
+                this.spawnTeams();
+                this.resetPositions();
+                this.updateHUD();
+
+                SoundSystem.init();
+                SoundSystem.playWhistle();
+                SoundSystem.announceMC("WELCOME TO NEON ROOF! LET'S FOOT IT!", "Welcome to Neon Roof! Let's Foot It!", "text-cyan-300 border-cyan-400");
+            },
+
+            spawnTeams() {
+                // Remove existing meshes
+                this.players.forEach(p => scene.remove(p.visual.root));
+                this.players = [];
+
+                const is2v2 = this.format === '2v2' && this.mode !== 'online';
+
+                // Player 1 (Blue Team - Human)
+                this.players.push(this.createPlayerEntity({
+                    id: 'p1',
+                    team: 'blue',
+                    control: 'human1',
+                    styleIndex: 0,
+                    homePos: new THREE.Vector3(-10.5, 0, is2v2 ? -5.0 : 0)
+                }));
+
+                // Player 2 (Gold Team - Human2 in Local2P/Online, or AI)
+                const p2Control = (this.mode === 'local2p') ? 'human2' : (this.mode === 'online' ? 'online2' : 'ai');
+                this.players.push(this.createPlayerEntity({
+                    id: 'p2',
+                    team: 'gold',
+                    control: p2Control,
+                    styleIndex: 1,
+                    homePos: new THREE.Vector3(10.5, 0, is2v2 ? 5.0 : 0)
+                }));
+
+                if (is2v2) {
+                    this.players.push(this.createPlayerEntity({
+                        id: 'p3',
+                        team: 'blue',
+                        control: 'ai',
+                        styleIndex: 2,
+                        homePos: new THREE.Vector3(-14.5, 0, 6.0)
+                    }));
+                    this.players.push(this.createPlayerEntity({
+                        id: 'p4',
+                        team: 'gold',
+                        control: 'ai',
+                        styleIndex: 3,
+                        homePos: new THREE.Vector3(14.5, 0, -6.0)
+                    }));
+                }
+            },
+
+            createPlayerEntity(cfg) {
+                return {
+                    ...cfg,
+                    pos: cfg.homePos.clone(),
+                    vel: new THREE.Vector3(0, 0, 0),
+                    facing: cfg.team === 'blue' ? 0 : Math.PI,
+                    grounded: true,
+                    trickState: null, // 'wallflip', 'bicycle', 'rainbow', 'slide'
+                    trickTimer: 0,
+                    flipAngle: 0,
+                    cooldown: 0,
+                    runCycle: 0,
+                    visual: createPlayerMesh(cfg.team, cfg.styleIndex)
+                };
+            },
+
+            resetPositions() {
+                this.ball.pos.set(0, 1.2, 0);
+                this.ball.vel.set(0, 0, 0);
+                this.ball.owner = null;
+                this.ball.powerTimer = 0;
+
+                this.players.forEach(p => {
+                    p.pos.copy(p.homePos);
+                    p.vel.set(0, 0, 0);
+                    p.grounded = true;
+                    p.trickState = null;
+                    p.trickTimer = 0;
+                    p.flipAngle = 0;
+                    p.facing = p.team === 'blue' ? 0 : Math.PI;
+                });
+            },
+
+            updateHUD() {
+                document.getElementById('score-blue').textContent = this.scoreBlue;
+                document.getElementById('score-gold').textContent = this.scoreGold;
+                const mins = Math.floor(Math.max(0, this.timeLeft) / 60);
+                const secs = Math.floor(Math.max(0, this.timeLeft) % 60);
+                document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            },
+
+            getInputForPlayer(p, dt) {
+                if (p.control === 'human1') {
+                    // If online guest, P1 sends input to host
+                    const inp = InputManager.getPlayer1Input(this.mode === 'local2p');
+                    if (this.mode === 'online' && window.FootItNet?.role === 'guest') {
+                        window.FootItNet.syncGuestInput(inp);
+                    }
+                    return inp;
+                }
+                if (p.control === 'human2') {
+                    return InputManager.getPlayer2LocalInput();
+                }
+                if (p.control === 'online2') {
+                    if (window.FootItNet?.enabled && window.FootItNet?.role === 'host' && window.FootItNet.guestPresent) {
+                        const ri = window.FootItNet.remoteInput;
+                        // Consume edge triggers once
+                        const out = { ...ri };
+                        window.FootItNet.remoteInput = { x: ri.x, z: ri.z, jump: false, shoot: false, pass: false, flick: false };
+                        return out;
+                    }
+                    // If waiting for guest or simulated online, smart AI plays until guest moves
+                    return this.computeAIInput(p);
+                }
+                return this.computeAIInput(p);
+            },
+
+            computeAIInput(p) {
+                const b = this.ball;
+                const targetGoalX = p.team === 'blue' ? ARENA.HALF_W : -ARENA.HALF_W;
+                const ownGoalX = -targetGoalX;
+                const inp = { x: 0, z: 0, jump: false, shoot: false, pass: false, flick: false };
+
+                if (b.owner === p) {
+                    // Dribble toward opponent goal
+                    const dx = targetGoalX - p.pos.x;
+                    const dz = (Math.sin(performance.now() * 0.002 + p.styleIndex) * 3.5) - p.pos.z;
+                    const dist = Math.hypot(dx, dz) || 1;
+                    inp.x = dx / dist;
+                    inp.z = dz / dist;
+
+                    // Check if defender is close -> Rainbow Flick!
+                    const opp = this.players.find(o => o.team !== p.team && o.pos.distanceTo(p.pos) < 3.4);
+                    if (opp && Math.random() < 0.045) {
+                        inp.flick = true;
+                    }
+                    // Shoot when in range
+                    if (Math.abs(targetGoalX - p.pos.x) < 14.5 && Math.random() < 0.07) {
+                        inp.shoot = true;
+                    }
+                } else {
+                    // Chase ball or defend goal
+                    let tx = b.pos.x;
+                    let tz = b.pos.z;
+
+                    // Teammate spacing in 2v2
+                    const mate = this.players.find(m => m !== p && m.team === p.team);
+                    if (mate && mate.pos.distanceTo(b.pos) < p.pos.distanceTo(b.pos)) {
+                        tx = (b.pos.x + ownGoalX) * 0.5;
+                        tz = -b.pos.z * 0.5;
+                    }
+
+                    const dx = tx - p.pos.x;
+                    const dz = tz - p.pos.z;
+                    const dist = Math.hypot(dx, dz) || 1;
+                    inp.x = dx / dist;
+                    inp.z = dz / dist;
+
+                    // Bicycle kick opportunity if ball is airborne nearby!
+                    if (b.owner === null && b.pos.y > 1.3 && b.pos.y < 3.4 && p.pos.distanceTo(b.pos) < 2.6 && Math.random() < 0.14) {
+                        inp.shoot = true;
+                    }
+                    // Wall flip near side/back wall
+                    if (p.grounded && (Math.abs(p.pos.z) > ARENA.HALF_D - 1.3) && Math.random() < 0.03) {
+                        inp.jump = true;
+                    }
+                    // Slide tackle if opponent has ball close
+                    if (b.owner && b.owner.team !== p.team && p.pos.distanceTo(b.owner.pos) < 2.5 && Math.random() < 0.05) {
+                        inp.pass = true;
+                    }
+                }
+                return inp;
+            },
+
+            performPlayerActions(p, inp, dt) {
+                if (p.cooldown > 0) p.cooldown -= dt;
+
+                // Movement
+                const moveSpeed = p.trickState === 'wallflip' ? 16.5 : (p.trickState === 'slide' ? 17.0 : 11.2);
+                if (p.trickState !== 'slide') {
+                    p.vel.x = THREE.MathUtils.lerp(p.vel.x, inp.x * moveSpeed, 12 * dt);
+                    p.vel.z = THREE.MathUtils.lerp(p.vel.z, inp.z * moveSpeed, 12 * dt);
+                }
+
+                if (Math.hypot(p.vel.x, p.vel.z) > 0.4) {
+                    p.facing = Math.atan2(-p.vel.z, p.vel.x);
+                    p.runCycle += dt * 14;
+                }
+
+                // 1. JUMP & WALL FLIP!
+                if (inp.jump && p.grounded) {
+                    const nearBackWall = p.pos.z < -ARENA.HALF_D + 1.5;
+                    const nearFrontWall = p.pos.z > ARENA.HALF_D - 1.5;
+                    const nearLeftWall = p.pos.x < -ARENA.HALF_W + 1.5;
+                    const nearRightWall = p.pos.x > ARENA.HALF_W - 1.5;
+
+                    if (nearBackWall || nearFrontWall || nearLeftWall || nearRightWall) {
+                        // WALL FLIP! Launch off cage wall with 360 flip
+                        p.grounded = false;
+                        p.vel.y = 10.5;
+                        p.trickState = 'wallflip';
+                        p.trickTimer = 0.65;
+                        p.flipAngle = 0;
+                        if (nearBackWall) p.vel.z = 13.5;
+                        if (nearFrontWall) p.vel.z = -13.5;
+                        if (nearLeftWall) p.vel.x = 13.5;
+                        if (nearRightWall) p.vel.x = -13.5;
+
+                        SoundSystem.playTrick('wallflip');
+                        SoundSystem.announceMC('WALL FLIP! 🤸', 'Wall flip off the cage!', 'text-pink-300 border-pink-400');
+                        spawnTrailParticle(p.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0xff00aa, 0.55);
+                    } else {
+                        // Normal Jump
+                        p.grounded = false;
+                        p.vel.y = 8.4;
+                    }
+                }
+
+                // 2. RAINBOW FLICK! (When dribbling ball)
+                if (inp.flick && this.ball.owner === p && p.cooldown <= 0) {
+                    this.ball.owner = null;
+                    const dirX = Math.cos(p.facing);
+                    const dirZ = -Math.sin(p.facing);
+                    this.ball.vel.set(dirX * 8.2, 9.6, dirZ * 8.2);
+                    this.ball.powerTimer = 1.1;
+                    this.ball.powerColor = 0xff00ff;
+                    this.ball.lastTouchTeam = p.team;
+
+                    p.trickState = 'rainbow';
+                    p.trickTimer = 0.45;
+                    p.flipAngle = 0;
+                    p.cooldown = 0.55;
+
+                    SoundSystem.playTrick('rainbow');
+                    SoundSystem.announceMC('RAINBOW FLICK! 🌈', 'Oh! Rainbow flick!', 'text-fuchsia-300 border-fuchsia-400');
+                    screenShake = 0.25;
+                }
+
+                // 3. SHOOT & BICYCLE KICK!
+                if (inp.shoot && p.cooldown <= 0) {
+                    const targetGoalX = p.team === 'blue' ? ARENA.HALF_W : -ARENA.HALF_W;
+                    const aimZ = THREE.MathUtils.clamp(inp.z * 3.1, -2.8, 2.8);
+                    const toGoal = new THREE.Vector3(targetGoalX - p.pos.x, 0, aimZ - p.pos.z).normalize();
+
+                    if (this.ball.owner === p) {
+                        // Power Shot!
+                        this.ball.owner = null;
+                        const boost = p.trickState === 'wallflip' ? 1.3 : 1.0;
+                        this.ball.vel.set(toGoal.x * 26 * boost, 4.8, toGoal.z * 26 * boost);
+                        this.ball.powerTimer = 1.2;
+                        this.ball.powerColor = p.team === 'blue' ? 0x00f3ff : 0xfbbf24;
+                        this.ball.lastTouchTeam = p.team;
+                        p.cooldown = 0.35;
+                        SoundSystem.playKick(1.2);
+                        screenShake = 0.22;
+                    } else if (this.ball.pos.distanceTo(p.pos) < 3.4 && this.ball.pos.y > 1.05) {
+                        // BICYCLE KICK! (Mid-air overhead volley)
+                        this.ball.owner = null;
+                        this.ball.vel.set(toGoal.x * 31.0, 2.5, toGoal.z * 31.0);
+                        this.ball.powerTimer = 1.6;
+                        this.ball.powerColor = 0xff5500;
+                        this.ball.lastTouchTeam = p.team;
+
+                        p.grounded = false;
+                        p.vel.y = 6.5;
+                        p.trickState = 'bicycle';
+                        p.trickTimer = 0.6;
+                        p.flipAngle = 0;
+                        p.cooldown = 0.6;
+
+                        hitstopTimer = 0.055;
+                        screenShake = 0.48;
+                        SoundSystem.playTrick('bicycle');
+                        SoundSystem.announceMC('BICYCLE KICK!! 🔥', 'Bicycle kick! Unbelievable!', 'text-amber-300 border-amber-400');
+                    } else if (this.ball.pos.distanceTo(p.pos) < 2.3) {
+                        // Ground One-Timer Shot
+                        this.ball.owner = null;
+                        this.ball.vel.set(toGoal.x * 23.5, 4.0, toGoal.z * 23.5);
+                        this.ball.powerTimer = 0.9;
+                        this.ball.powerColor = 0x00f3ff;
+                        this.ball.lastTouchTeam = p.team;
+                        p.cooldown = 0.35;
+                        SoundSystem.playKick(1.1);
+                    }
+                }
+
+                // 4. PASS / SLIDE TACKLE
+                if (inp.pass && p.cooldown <= 0) {
+                    if (this.ball.owner === p) {
+                        // Pass to teammate or space ahead
+                        const mate = this.players.find(m => m !== p && m.team === p.team);
+                        let dir;
+                        if (mate) {
+                            dir = mate.pos.clone().sub(p.pos).setY(0).normalize();
+                        } else {
+                            dir = new THREE.Vector3(Math.cos(p.facing), 0, -Math.sin(p.facing));
+                        }
+                        this.ball.owner = null;
+                        this.ball.vel.set(dir.x * 15.5, 2.0, dir.z * 15.5);
+                        this.ball.lastTouchTeam = p.team;
+                        p.cooldown = 0.3;
+                        SoundSystem.playKick(0.85);
+                    } else if (p.grounded) {
+                        // Slide Tackle!
+                        p.trickState = 'slide';
+                        p.trickTimer = 0.36;
+                        p.cooldown = 0.7;
+                        const dirX = Math.cos(p.facing);
+                        const dirZ = -Math.sin(p.facing);
+                        p.vel.x = dirX * 15.5;
+                        p.vel.z = dirZ * 15.5;
+                        SoundSystem.playTone(160, 'sine', 0.16, 0.18, 70);
+                    }
+                }
+
+                // Gravity & Vertical Position
+                if (!p.grounded) {
+                    p.vel.y -= 23 * dt;
+                    p.pos.y += p.vel.y * dt;
+                    if (p.pos.y <= 0) {
+                        p.pos.y = 0;
+                        p.vel.y = 0;
+                        p.grounded = true;
+                    }
+                }
+
+                // Integrate Horizontal Position & Cage Wall Bounce
+                p.pos.x += p.vel.x * dt;
+                p.pos.z += p.vel.z * dt;
+
+                const margin = 0.75;
+                if (p.pos.x < -ARENA.HALF_W + margin) { p.pos.x = -ARENA.HALF_W + margin; p.vel.x *= -0.5; }
+                if (p.pos.x > ARENA.HALF_W - margin) { p.pos.x = ARENA.HALF_W - margin; p.vel.x *= -0.5; }
+                if (p.pos.z < -ARENA.HALF_D + margin) { p.pos.z = -ARENA.HALF_D + margin; p.vel.z *= -0.5; }
+                if (p.pos.z > ARENA.HALF_D - margin) { p.pos.z = ARENA.HALF_D - margin; p.vel.z *= -0.5; }
+
+                // Trick Animation Timer
+                if (p.trickTimer > 0) {
+                    p.trickTimer -= dt;
+                    p.flipAngle += dt * 15;
+                    if (p.trickTimer <= 0) {
+                        p.trickState = null;
+                        p.flipAngle = 0;
+                    }
+                }
+
+                // Slide Tackle Steal Check
+                if (p.trickState === 'slide') {
+                    if (this.ball.owner && this.ball.owner.team !== p.team && this.ball.owner.pos.distanceTo(p.pos) < 1.5) {
+                        this.ball.owner = p;
+                        this.ball.lastTouchTeam = p.team;
+                        SoundSystem.playKick(0.9);
+                        SoundSystem.announceMC('CLEAN STEAL! ⚡', 'Clean tackle!', 'text-emerald-300 border-emerald-400');
+                    }
+                }
+
+                // Update 3D Visual Mesh
+                const v = p.visual;
+                v.root.position.copy(p.pos);
+                v.root.rotation.y = p.facing;
+
+                if (p.trickState === 'wallflip' || p.trickState === 'rainbow') {
+                    v.root.rotation.z = -p.flipAngle;
+                    v.root.rotation.x = 0;
+                } else if (p.trickState === 'bicycle') {
+                    v.root.rotation.z = p.flipAngle;
+                } else if (p.trickState === 'slide') {
+                    v.root.rotation.z = Math.PI * 0.42;
+                    v.root.position.y = 0.35;
+                } else {
+                    v.root.rotation.z = 0;
+                    v.root.rotation.x = 0;
+                    const speedRatio = Math.min(1, Math.hypot(p.vel.x, p.vel.z) / 9);
+                    v.leftLeg.rotation.z = Math.sin(p.runCycle) * 0.65 * speedRatio;
+                    v.rightLeg.rotation.z = -Math.sin(p.runCycle) * 0.65 * speedRatio;
+                    v.leftArm.position.x = 0.1 - Math.sin(p.runCycle) * 0.25 * speedRatio;
+                    v.rightArm.position.x = 0.1 + Math.sin(p.runCycle) * 0.25 * speedRatio;
+                }
+            },
+
+            updateBallPhysics(dt) {
+                const b = this.ball;
+
+                if (b.powerTimer > 0) {
+                    b.powerTimer -= dt;
+                    if (Math.random() < 0.65) {
+                        spawnTrailParticle(b.pos, b.powerColor, 0.38);
+                    }
+                    ballRing.visible = true;
+                    ballRing.material.color.setHex(b.powerColor);
+                } else {
+                    ballRing.visible = false;
+                }
+
+                if (b.owner) {
+                    // Magnetized dribbling in front of player
+                    const p = b.owner;
+                    const leadX = p.pos.x + Math.cos(p.facing) * 0.95;
+                    const leadZ = p.pos.z - Math.sin(p.facing) * 0.95;
+                    b.pos.x = THREE.MathUtils.lerp(b.pos.x, leadX, 18 * dt);
+                    b.pos.z = THREE.MathUtils.lerp(b.pos.z, leadZ, 18 * dt);
+                    b.pos.y = 0.56 + Math.abs(Math.sin(p.runCycle)) * 0.12;
+                    b.vel.set(p.vel.x, 0, p.vel.z);
+
+                    // Check if another player contests the dribble
+                    for (const other of this.players) {
+                        if (other !== p && other.cooldown <= 0 && other.pos.distanceTo(b.pos) < 1.05 && other.pos.y < 1.2) {
+                            b.owner = other;
+                            b.lastTouchTeam = other.team;
+                            p.cooldown = 0.45;
+                            SoundSystem.playKick(0.8);
+                            break;
+                        }
+                    }
+                } else {
+                    // Free ball physics
+                    b.vel.y -= 21 * dt;
+                    b.pos.addScaledVector(b.vel, dt);
+
+                    // Floor bounce
+                    if (b.pos.y < 0.55) {
+                        b.pos.y = 0.55;
+                        if (Math.abs(b.vel.y) > 1.8) {
+                            b.vel.y = -b.vel.y * 0.68;
+                        } else {
+                            b.vel.y = 0;
+                        }
+                        b.vel.x *= 0.975;
+                        b.vel.z *= 0.975;
+                    }
+
+                    // Ceiling bounce inside Neon Roof
+                    if (b.pos.y > ARENA.WALL_H + 1.5) {
+                        b.pos.y = ARENA.WALL_H + 1.5;
+                        b.vel.y = -Math.abs(b.vel.y) * 0.7;
+                        SoundSystem.playWallBoing();
+                    }
+
+                    // Z Cage Walls Bounce
+                    if (b.pos.z < -ARENA.HALF_D + 0.55) {
+                        b.pos.z = -ARENA.HALF_D + 0.55;
+                        b.vel.z = Math.abs(b.vel.z) * 0.84;
+                        SoundSystem.playWallBoing();
+                    }
+                    if (b.pos.z > ARENA.HALF_D - 0.55) {
+                        b.pos.z = ARENA.HALF_D - 0.55;
+                        b.vel.z = -Math.abs(b.vel.z) * 0.84;
+                        SoundSystem.playWallBoing();
+                    }
+
+                    // Check GOAL vs X Cage Wall Bounce
+                    const inGoalMouthZ = Math.abs(b.pos.z) < (ARENA.GOAL_W / 2 - 0.25);
+                    const inGoalMouthY = b.pos.y < ARENA.GOAL_H;
+
+                    if (b.pos.x < -ARENA.HALF_W) {
+                        if (inGoalMouthZ && inGoalMouthY) {
+                            this.handleGoalScored('gold');
+                            return;
+                        } else {
+                            b.pos.x = -ARENA.HALF_W + 0.55;
+                            b.vel.x = Math.abs(b.vel.x) * 0.84;
+                            SoundSystem.playWallBoing();
+                        }
+                    } else if (b.pos.x > ARENA.HALF_W) {
+                        if (inGoalMouthZ && inGoalMouthY) {
+                            this.handleGoalScored('blue');
+                            return;
+                        } else {
+                            b.pos.x = ARENA.HALF_W - 0.55;
+                            b.vel.x = -Math.abs(b.vel.x) * 0.84;
+                            SoundSystem.playWallBoing();
+                        }
+                    }
+
+                    // Player Ball Pickup / Control
+                    const speed = b.vel.length();
+                    if (speed < 17.5 && b.pos.y < 1.65) {
+                        for (const p of this.players) {
+                            if (p.cooldown <= 0 && p.pos.distanceTo(b.pos) < 1.25 && Math.abs(p.pos.y - (b.pos.y - 0.55)) < 1.1) {
+                                b.owner = p;
+                                b.lastTouchTeam = p.team;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Update Ball Visuals
+                ballMesh.position.copy(b.pos);
+                ballMesh.rotation.z -= b.vel.x * dt * 1.4;
+                ballMesh.rotation.x += b.vel.z * dt * 1.4;
+                ballRing.lookAt(camera.position);
+
+                ballShadow.position.set(b.pos.x, 0.02, b.pos.z);
+                const shScale = Math.max(0.35, 1 - b.pos.y * 0.12);
+                ballShadow.scale.set(shScale, shScale, 1);
+            },
+
+            handleGoalScored(scoringTeam) {
+                if (this.state !== 'playing') return;
+                this.state = 'goal_pause';
+                this.goalPauseTimer = 2.4;
+
+                if (scoringTeam === 'blue') {
+                    this.scoreBlue++;
+                    SoundSystem.announceMC('GOOOAL! MAVİ TAKIM! 🔵🔥', 'What a goal! Blue team scores!', 'text-cyan-300 border-cyan-400');
+                } else {
+                    this.scoreGold++;
+                    SoundSystem.announceMC('GOOOAL! ALTIN TAKIM! 🟡🔥', 'Unstoppable goal! Gold team scores!', 'text-amber-300 border-amber-400');
+                }
+
+                this.updateHUD();
+                SoundSystem.playGoal();
+                screenShake = 0.7;
+
+                // Celebration burst
+                for (let i = 0; i < 24; i++) {
+                    spawnTrailParticle(
+                        this.ball.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3)),
+                        scoringTeam === 'blue' ? 0x00f3ff : 0xfbbf24,
+                        0.55
+                    );
+                }
+            },
+
+            endMatch() {
+                this.state = 'gameover';
+                SoundSystem.playWhistle();
+
+                const titleEl = document.getElementById('winner-title');
+                if (this.scoreBlue > this.scoreGold) {
+                    titleEl.textContent = 'MAVİ TAKIM KAZANDI! 🏆';
+                    SoundSystem.announceMC('FULL TIME! BLUE TEAM WINS!', 'Full time! Blue team wins the Neon Roof!', 'text-cyan-300 border-cyan-400');
+                } else if (this.scoreGold > this.scoreBlue) {
+                    titleEl.textContent = 'ALTIN TAKIM KAZANDI! 🏆';
+                    SoundSystem.announceMC('FULL TIME! GOLD TEAM WINS!', 'Full time! Gold team wins the Neon Roof!', 'text-amber-300 border-amber-400');
+                } else {
+                    titleEl.textContent = 'BERABERE BİTTİ! 🤝';
+                    SoundSystem.announceMC('WHAT A MATCH! IT IS A DRAW!', 'What a match! It ends in a draw!', 'text-pink-300 border-pink-400');
+                }
+
+                document.getElementById('final-score-blue').textContent = this.scoreBlue;
+                document.getElementById('final-score-gold').textContent = this.scoreGold;
+                document.getElementById('gameover-overlay').classList.remove('hidden');
+            },
+
+            step(dt) {
+                // Animate background crowd
+                const t = performance.now() * 0.001;
+                for (let i = 0; i < crowdMeshes.length; i++) {
+                    const c = crowdMeshes[i];
+                    c.mesh.position.y = c.baseY + Math.abs(Math.sin(t * c.speed + c.phase)) * 0.25;
+                }
+
+                // Fade trail particles
+                for (let i = ballTrailParticles.length - 1; i >= 0; i--) {
+                    const pt = ballTrailParticles[i];
+                    pt.life -= dt * 2.8;
+                    if (pt.life <= 0) {
+                        scene.remove(pt.mesh);
+                        ballTrailParticles.splice(i, 1);
+                    } else {
+                        pt.mesh.scale.setScalar(pt.life);
+                        pt.mesh.material.opacity = pt.life * 0.8;
+                    }
+                }
+
+                if (hitstopTimer > 0) {
+                    hitstopTimer -= dt;
+                    return;
+                }
+
+                if (this.state === 'gameover' && this.mode === 'online' && window.FootItNet?.role === 'guest') {
+                    const st = window.FootItNet.remoteState;
+                    if (st && st.tm > 5 && performance.now() - (st.recvAt || 0) < 400) {
+                        this.startMatch('online');
+                    }
+                }
+
+                if (this.state === 'goal_pause') {
+                    this.goalPauseTimer -= dt;
+                    if (this.goalPauseTimer <= 0) {
+                        this.state = 'playing';
+                        this.resetPositions();
+                        SoundSystem.playWhistle();
+                    }
+                } else if (this.state === 'playing') {
+                    // Timer countdown
+                    this.timeLeft -= dt;
+                    if (this.timeLeft <= 0) {
+                        this.timeLeft = 0;
+                        this.updateHUD();
+                        this.endMatch();
+                        return;
+                    }
+                    this.updateHUD();
+
+                    // Online Guest Mode: yerelde simülasyon yok; girdiyi gönder, kurucunun durumunu uygula
+                    if (this.mode === 'online' && window.FootItNet?.role === 'guest') {
+                        const ginp = InputManager.getPlayer1Input(false);
+                        window.FootItNet.syncGuestInput(ginp);
+                        const st = window.FootItNet.remoteState;
+                        if (st) {
+                            this.ball.pos.set(st.bx, st.by, st.bz);
+                            ballMesh.position.copy(this.ball.pos);
+                            if (st.sb !== this.scoreBlue || st.sg !== this.scoreGold) {
+                                const team = st.sb > this.scoreBlue ? 'blue' : 'gold';
+                                this.scoreBlue = st.sb;
+                                this.scoreGold = st.sg;
+                                SoundSystem.playGoal();
+                                screenShake = 0.7;
+                                SoundSystem.announceMC(team === 'blue' ? 'GOOOAL! MAVİ TAKIM! 🔵🔥' : 'GOOOAL! ALTIN TAKIM! 🟡🔥', 'What a goal!', team === 'blue' ? 'text-cyan-300 border-cyan-400' : 'text-amber-300 border-amber-400');
+                            }
+                            this.timeLeft = st.tm;
+                            if (st.players && st.players.length === this.players.length) {
+                                st.players.forEach((sp, idx) => {
+                                    const lp = this.players[idx];
+                                    lp.pos.set(sp.x, sp.y, sp.z);
+                                    lp.facing = sp.f;
+                                    lp.visual.root.position.copy(lp.pos);
+                                    lp.visual.root.rotation.y = lp.facing;
+                                });
+                            }
+                        }
+                    } else {
+                        // Authoritative simulation (Solo, Local 2P, or Online Host)
+                        for (const p of this.players) {
+                            const inp = this.getInputForPlayer(p, dt);
+                            this.performPlayerActions(p, inp, dt);
+                        }
+                        this.updateBallPhysics(dt);
+
+                        // Broadcast state if Online Host
+                        if (this.mode === 'online' && window.FootItNet?.role === 'host') {
+                            window.FootItNet.syncHostState({
+                                bx: +this.ball.pos.x.toFixed(2),
+                                by: +this.ball.pos.y.toFixed(2),
+                                bz: +this.ball.pos.z.toFixed(2),
+                                sb: this.scoreBlue,
+                                sg: this.scoreGold,
+                                tm: +this.timeLeft.toFixed(1),
+                                players: this.players.map(pl => ({
+                                    x: +pl.pos.x.toFixed(2),
+                                    y: +pl.pos.y.toFixed(2),
+                                    z: +pl.pos.z.toFixed(2),
+                                    f: +pl.facing.toFixed(2)
+                                }))
+                            });
+                        }
+                    }
+                } else {
+                    // Demo idle camera orbit in main menu
+                    const angle = t * 0.25;
+                    camera.position.x = Math.sin(angle) * 8.5;
+                    camera.position.y = 21.5;
+                    camera.position.z = 32.0;
+                    camera.lookAt(0, 1.4, 0);
+                    return;
+                }
+
+                // Dynamic Broadcast Camera Tracking Ball + Screen Shake
+                const targetCamX = THREE.MathUtils.clamp(this.ball.pos.x * 0.48, -11.5, 11.5);
+                const targetCamZ = 29.5 + this.ball.pos.z * 0.32;
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamX, 5 * dt);
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, 20.5 + this.ball.pos.y * 0.4, 5 * dt);
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, 5 * dt);
+
+                if (screenShake > 0) {
+                    camera.position.x += (Math.random() - 0.5) * screenShake;
+                    camera.position.y += (Math.random() - 0.5) * screenShake;
+                    screenShake = Math.max(0, screenShake - dt * 2.2);
+                }
+
+                camera.lookAt(this.ball.pos.x * 0.35, 1.4, this.ball.pos.z * 0.3);
+            }
+        };
+
+        // ==========================================
+        // 5. UI EVENT WIRING & INITIALIZATION
+        // ==========================================
+        function showToast(msg) {
+            const box = document.getElementById('toast-box');
+            if (!box) return;
+            box.textContent = msg;
+            box.classList.remove('hidden');
+            clearTimeout(box._t);
+            box._t = setTimeout(() => box.classList.add('hidden'), 3200);
+        }
+
+        function bindUI() {
+            // Format selector (1v1 / 2v2)
+            const f1 = document.getElementById('format-1v1');
+            const f2 = document.getElementById('format-2v2');
+            f1.addEventListener('click', () => {
+                Game.format = '1v1';
+                f1.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 transition';
+                f2.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+            });
+            f2.addEventListener('click', () => {
+                Game.format = '2v2';
+                f2.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 transition';
+                f1.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+            });
+
+            // Start Solo vs AI
+            document.getElementById('btn-start-solo').addEventListener('click', () => {
+                Game.startMatch('solo');
+            });
+
+            // Start Local 2P
+            document.getElementById('btn-start-local2p').addEventListener('click', () => {
+                Game.startMatch('local2p');
+                showToast('2 Oyuncu Aktif! P1: WASD+Space/J/K/L | P2: Ok Tuşları+Enter/M/N/B veya 2. Kontrolcü');
+            });
+
+            // Toggle Online Panel
+            document.getElementById('btn-toggle-online-panel').addEventListener('click', () => {
+                document.getElementById('online-panel').classList.toggle('hidden');
+            });
+
+            // Create Online Room
+            document.getElementById('btn-create-room').addEventListener('click', async () => {
+                const statusEl = document.getElementById('online-status-msg');
+                statusEl.textContent = 'Oda oluşturuluyor...';
+                const res = await window.FootItNet.createRoom();
+                if (res.ok) {
+                    document.getElementById('hud-room-status').textContent = 'Rakip Bekleniyor...';
+                    Game.startMatch('online');
+                    statusEl.textContent = `Oda kodu: ${res.code}`;
+                    showToast(`Oda Kodu: ${res.code} — Arkadaşınla paylaş! (Gelene kadar bot oynar)`);
+                } else {
+                    statusEl.textContent = res.msg;
+                    showToast(res.msg);
+                }
+            });
+
+            // Join Online Room
+            document.getElementById('btn-join-room').addEventListener('click', async () => {
+                const code = document.getElementById('input-room-code').value;
+                const statusEl = document.getElementById('online-status-msg');
+                statusEl.textContent = 'Odaya bağlanılıyor...';
+                const res = await window.FootItNet.joinRoom(code);
+                if (res.ok) {
+                    document.getElementById('hud-room-status').textContent = 'Odaya Bağlandı';
+                    Game.startMatch('online');
+                    showToast(`${res.code} odasına katıldın! Sen ALTIN takımsın (sağ kale hücum yönün sol).`);
+                } else {
+                    statusEl.textContent = res.msg;
+                    showToast(res.msg);
+                }
+            });
+
+            window.onOnlineGuestJoined = () => {
+                document.getElementById('hud-room-status').textContent = 'Rakip Bağlandı! 🟢';
+                SoundSystem.announceMC('CHALLENGER HAS ENTERED THE CAGE!', 'A challenger has entered the cage!', 'text-emerald-300 border-emerald-400');
+                showToast('🟢 Rakip odaya katıldı!');
+            };
+
+            window.onOnlinePeerLeft = (msg, roomClosed) => {
+                showToast(msg);
+                const st = document.getElementById('hud-room-status');
+                if (st) st.textContent = roomClosed ? 'Oda kapandı' : 'Rakip yok (Bot)';
+                if (roomClosed && Game.mode === 'online') { backToMenu(); }
+            };
+
+            // Audio & MC Toggles
+            const btnMc = document.getElementById('btn-toggle-mc');
+            btnMc.addEventListener('click', () => {
+                SoundSystem.mcEnabled = !SoundSystem.mcEnabled;
+                btnMc.textContent = SoundSystem.mcEnabled ? '🎙️ MC: AÇIK' : '🎙️ MC: KAPALI';
+            });
+
+            const btnSfx = document.getElementById('btn-toggle-sfx');
+            btnSfx.addEventListener('click', () => {
+                SoundSystem.sfxEnabled = !SoundSystem.sfxEnabled;
+                btnSfx.textContent = SoundSystem.sfxEnabled ? '🔊 SES: AÇIK' : '🔇 SES: KAPALI';
+            });
+
+            // Return to Menu
+            const backToMenu = () => {
+                Game.state = 'menu';
+                if (window.FootItNet) window.FootItNet.leaveRoom();
+                document.getElementById('hud-overlay').classList.add('hidden');
+                document.getElementById('gameover-overlay').classList.add('hidden');
+                document.getElementById('btn-open-menu').classList.add('hidden');
+                document.getElementById('menu-overlay').classList.remove('hidden');
+            };
+            document.getElementById('btn-open-menu').addEventListener('click', backToMenu);
+            document.getElementById('btn-back-lobby').addEventListener('click', backToMenu);
+
+            // Rematch
+            document.getElementById('btn-rematch').addEventListener('click', () => {
+                if (Game.mode === 'online' && window.FootItNet?.role === 'guest') {
+                    showToast('Rövanşı kurucu başlatır, bekle...');
+                    return;
+                }
+                Game.startMatch(Game.mode);
+            });
+        }
+
+        // Main Animation Loop started on window load
+        let lastFrameTime = 0;
+        function animate(now) {
+            requestAnimationFrame(animate);
+            if (!lastFrameTime) lastFrameTime = now;
+            const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+            lastFrameTime = now;
+
+            Game.step(dt);
+            InputManager.clearFrame();
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.onload = function() {
+            initScene();
+            InputManager.init();
+            bindUI();
+            requestAnimationFrame(animate);
+        };
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "foot-it-online",
+  "version": "1.0.0",
+  "description": "FOOT IT! Neon Cage Football - online 1v1 sunucusu",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
